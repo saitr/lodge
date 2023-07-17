@@ -290,7 +290,7 @@ def booking_success(request):
 #############################  Total Bookings #######################
 
 
-@login_required
+@login_required(login_url='signin')
 def my_bookings(request):
     user = request.user
     my_bookings = Lodge.objects.filter(user=user)
@@ -299,12 +299,12 @@ def my_bookings(request):
 
 
 
-@staff_member_required
+@staff_member_required(login_url='signin')
 def total_bookings(request):
     bookings = Lodge.objects.all()
     return render(request, 'total_bookings.html', {'bookings': bookings})
 
-@login_required
+@login_required(login_url='signin')
 def check_in(request, lodge_id):
     lodge = Lodge.objects.get(id=lodge_id)
     if request.user.is_superuser and not lodge.check_in:
@@ -313,7 +313,7 @@ def check_in(request, lodge_id):
         lodge.save()
     return redirect(reverse('total-bookings'))
 
-@login_required
+@login_required(login_url='signin')
 def check_out(request, lodge_id):
     lodge = Lodge.objects.get(id=lodge_id)
     if request.user.is_superuser and lodge.check_in and not lodge.check_out:
@@ -327,7 +327,7 @@ def check_out(request, lodge_id):
     return redirect(reverse('total-bookings'))
 
 
-@login_required
+@login_required(login_url='signin')
 def order_page(request):
     user = request.user
 
@@ -343,7 +343,7 @@ def order_page(request):
 
 from django.http import HttpResponseRedirect
 
-@login_required
+@login_required(login_url='signin')
 def cancel_booking(request, booking_id):
     booking = get_object_or_404(Lodge, id=booking_id)
     if booking.user == request.user and not booking.check_in and not booking.check_out:
@@ -365,3 +365,43 @@ def create_room(request):
         form = RoomCreationForm()
     
     return render(request, 'create_room.html', {'form': form})
+
+from django.contrib.auth.decorators import login_required, user_passes_test
+
+@user_passes_test(lambda u: u.is_superuser)
+def generate_invoice(request):
+    if request.method == 'POST':
+        user_id = request.POST.get('user_id')
+        if user_id:
+            lodges = Lodge.objects.filter(user_id=user_id, check_out=True)
+        else:
+            lodges = Lodge.objects.filter(check_out=True)
+        invoices = []
+        for lodge in lodges:
+            invoice = Invoice.objects.create(lodge=lodge, invoice_number="INV001")
+            invoices.append(invoice)
+        return render(request, 'invoice.html', {'invoices': invoices})
+    return redirect('total_bookings')
+
+
+from django.db.models import Sum
+
+from django.db.models import F
+
+@login_required(login_url='signin')
+def generate_invoice(request, user_id):
+    user = get_object_or_404(User, id=user_id)
+    lodges = Lodge.objects.filter(user=user, check_out=True)  # Filter bookings for the selected user
+    total_price = lodges.aggregate(total=Sum('room_chosen__room_price'))['total']
+    invoices = []
+    for lodge in lodges:
+        invoice = Invoice.objects.create(lodge=lodge, invoice_number="INV001")  # Create an invoice for each booking
+        invoices.append(invoice)
+        # Mark the invoice as paid
+        
+        # You can also mark the lodge as paid if needed
+        lodge.check_out = True
+        lodge.save()
+    return render(request, 'invoice.html', {'invoices': invoices, 'total_price': total_price})
+
+

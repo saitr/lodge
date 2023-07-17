@@ -19,6 +19,7 @@ urlpatterns = [
     path('order/', views.order_page, name='order_page'),
     path('cancel-booking/<int:booking_id>/', views.cancel_booking, name='cancel_booking'),
     path('create-room/', views.create_room, name='create_room'),
+    path('generate-invoice/<int:user_id>/', views.generate_invoice, name='generate_invoice'),
 ]
 
 
